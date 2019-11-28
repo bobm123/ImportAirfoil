@@ -20,7 +20,7 @@ _user_filename = ""  # TODO: save in attributes
 # Command inputs
 _roTextBox = adsk.core.TextBoxCommandInput.cast(None)
 _getOffsetFile = adsk.core.TextBoxCommandInput.cast(None)
-_scaleFactor = adsk.core.ValueCommandInput.cast(None)
+_chordLength = adsk.core.ValueCommandInput.cast(None)
 _errMessage = adsk.core.TextBoxCommandInput.cast(None)
 
 
@@ -92,8 +92,8 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
             attribs = des.attributes
             attribs.add("ImportAirfoil", "filename", str(_user_filename))
 
-            scale_factor = float(_scaleFactor.value)
-            draw_airfoil(des, _airfoil_data, scale_factor)
+            chord_length = float(_chordLength.value)
+            draw_airfoil(des, _airfoil_data, chord_length)
 
         except:
             if _ui:
@@ -129,14 +129,9 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             getOffsetFile = False
 
-            scaleFactor = "1.0"
-            # scaleFactorAttrib = des.attributes.itemByName("ImportOffset", "scaleFactor")
-            # if scaleFactorAttrib:
-            #    scaleFactor = scaleFactorAttrib.value
-
             # Connect to the variable the command will provide inputs for
             global _roTextBox, _getOffsetFile
-            global _scaleFactor, _errMessage
+            global _chordLength, _errMessage
 
             # Connect to additional command created events
             onDestroy = IaCommandDestroyHandler()
@@ -173,11 +168,16 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 "select_file_button", "Select File", False, "resources/filebutton", True
             )
 
-            _scaleFactor = inputs.addValueInput(
-                "scaleFactor",
-                "Scale Factor",
+            chordLength = "1.0"
+            # chordLengthAttrib = des.attributes.itemByName("ImportAirfoil", "chordLength")
+            # if chordLengthAttrib:
+            #    chordLength = chordLengthAttrib.value
+
+            _chordLength = inputs.addValueInput(
+                "chordLength",
+                "chord Length",
                 "",
-                adsk.core.ValueInput.createByReal(float(scaleFactor)),
+                adsk.core.ValueInput.createByReal(float(chordLength)),
             )
 
             # Add an error message box at bottom
@@ -200,9 +200,9 @@ class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
 
             _errMessage.text = ""
 
-            scaleFactor = _scaleFactor.value
-            if scaleFactor < 0:
-                _errMessage.text = "scale factor must be positive"
+            chordLength = _chordLength.value
+            if chordLength < 0:
+                _errMessage.text = "Chord length must be positive"
                 eventArgs.areInputsValid = False
                 return
 
@@ -291,7 +291,7 @@ def add_cross_section(sketch, verticies):
     new_line = lines.addByTwoPoints(p0, p_start)
 
 
-def draw_airfoil(design, verticies, scale_factor=0.1):
+def draw_airfoil(design, verticies, chord_length):
     """ Draw the lines and sections represented by the offset table
     on a new component """
     # Create a new component.
@@ -304,7 +304,7 @@ def draw_airfoil(design, verticies, scale_factor=0.1):
     # sketch = newComp.sketches.add(rootComp.xYConstructionPlane)
 
     global _sketch
-    add_cross_section(_sketch, scale_coordinates(verticies, scale_factor))
+    add_cross_section(_sketch, scale_coordinates(verticies, chord_length))
 
     # return newComp
     return
