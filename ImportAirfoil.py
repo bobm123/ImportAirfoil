@@ -8,6 +8,7 @@ import sys
 # Globals
 _app = None
 _ui = None
+_sketch = None
 
 # Global set of event handlers to keep them referenced for the duration of the command
 _handlers = []
@@ -111,19 +112,27 @@ class IotCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd = adsk.core.Command.cast(args.command)
 
             # Verify that a Fusion design is active.
-            des = adsk.fusion.Design.cast(_app.activeProduct)
-            if not des:
-                _ui.messageBox(
-                    "A Fusion design must be active when invoking this command."
-                )
+            # des = adsk.fusion.Design.cast(_app.activeProduct)
+            # if not des:
+            #    _ui.messageBox(
+            #        "A Fusion design must be active when invoking this command."
+            #    )
+            #    return ()
+
+            # Verify that a sketch is active. TODO: If not, create one
+            if _app.activeEditObject.objectType != adsk.fusion.Sketch.classType():
+                _ui.messageBox("A sketch must be active for this command.")
                 return ()
+            else:
+                global _sketch
+                _sketch = _app.activeEditObject
 
             getOffsetFile = False
 
             scaleFactor = "1.0"
-            scaleFactorAttrib = des.attributes.itemByName("ImportOffset", "scaleFactor")
-            if scaleFactorAttrib:
-                scaleFactor = scaleFactorAttrib.value
+            # scaleFactorAttrib = des.attributes.itemByName("ImportOffset", "scaleFactor")
+            # if scaleFactorAttrib:
+            #    scaleFactor = scaleFactorAttrib.value
 
             # Connect to the variable the command will provide inputs for
             global _roTextBox, _getOffsetFile
@@ -247,15 +256,16 @@ def read_profile(infile):
     len_lower = int(raw[0][1])
     if len_upper > 1 or len_lower > 1:
         raw = raw[1:]
-        coordinates = raw[len_upper-1::-1]
-        coordinates.extend(raw[len_upper+1:]) #skip the repeated (0,0)
+        coordinates = raw[len_upper - 1 :: -1]
+        coordinates.extend(raw[len_upper + 1 :])  # skip the repeated (0,0)
     else:
         coordinates = raw
 
     return name, coordinates
 
+
 def scale_coordinates(in_list, scale):
-    ''' Apply a scale factor to all the values in a list '''
+    """ Apply a scale factor to all the values in a list """
 
     out_list = []
     for point in in_list:
@@ -265,10 +275,10 @@ def scale_coordinates(in_list, scale):
 
 
 def add_cross_section(sketch, verticies):
-    '''Adds a polygon for a list of cross section verticies'''
+    """Adds a polygon for a list of cross section verticies"""
 
     # TODO: generalize drawing a polygon from list of 2D points
-    lines = sketch.sketchCurves.sketchLines;
+    lines = sketch.sketchCurves.sketchLines
 
     # Start a first point
     p_start = adsk.core.Point3D.create(verticies[0][0], verticies[0][1], 0)
@@ -281,29 +291,23 @@ def add_cross_section(sketch, verticies):
     new_line = lines.addByTwoPoints(p0, p_start)
 
 
-def draw_airfoil(design, verticies, scale_factor=.1):
-    ''' Draw the lines and sections represented by the offset table
-    on a new component '''
+def draw_airfoil(design, verticies, scale_factor=0.1):
+    """ Draw the lines and sections represented by the offset table
+    on a new component """
     # Create a new component.
-    rootComp = design.rootComponent
-    trans = adsk.core.Matrix3D.create()
-    occ = rootComp.occurrences.addNewComponent(trans)
-    newComp = occ.component
+    # rootComp = design.rootComponent
+    # trans = adsk.core.Matrix3D.create()
+    # occ = rootComp.occurrences.addNewComponent(trans)
+    # newComp = occ.component
 
     # Create a new sketch on the xy plane.
-    sketch = newComp.sketches.add(rootComp.xYConstructionPlane)
+    # sketch = newComp.sketches.add(rootComp.xYConstructionPlane)
 
-    # Create the cross sections
-    #for section in offset_data['sections']:
-    #    section = scale_coordinates(section, scale_factor) # mm to cm
-    #    add_cross_section(sketch, point_dict, section, 1)
-    #    if not half_hull:
-    #        add_cross_section(sketch, point_dict, section,-1)
+    global _sketch
+    add_cross_section(_sketch, scale_coordinates(verticies, scale_factor))
 
-    add_cross_section(sketch,  scale_coordinates(verticies, scale_factor))
-
-
-    return newComp
+    # return newComp
+    return
 
 
 def run(context):
