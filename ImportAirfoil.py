@@ -16,9 +16,11 @@ _handlers = []
 # current set of offset data points (a dicitonary of lines and cross sections)
 _airfoil_data = {}  # TODO: pass values in attributes
 _user_filename = ""  # TODO: save in attributes
+_airfoil_name = ""
 
 # Command inputs
-_roTextBox = adsk.core.TextBoxCommandInput.cast(None)
+_roTextBox1 = adsk.core.TextBoxCommandInput.cast(None)
+_roTextBox2 = adsk.core.TextBoxCommandInput.cast(None)
 _getOffsetFile = adsk.core.TextBoxCommandInput.cast(None)
 _chordLength = adsk.core.ValueCommandInput.cast(None)
 _errMessage = adsk.core.TextBoxCommandInput.cast(None)
@@ -48,23 +50,19 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
-            global _roTextBox, _airfoil_data  # TODO: pass values in attributes
+            global _roTextBox1, _roTextBox2, _airfoil_data, _airfoil_name
 
             # Determine what changed from changedInput.id and act on it
             if changedInput.id == "select_file_button":
                 filename = get_user_file()
                 if filename:
                     fn = os.path.split(filename)[-1]
-                    if filename.endswith(".json"):
-                        _roTextBox.text = "Using:\n{}".format(fn)
-                        with open(filename, "r") as f:
-                            _airfoil_data = json.load(f)
-                            _user_filename = filename
-                    elif filename.endswith(".txt"):
-                        _roTextBox.text = "Using:\n{}".format(fn)
-                        with open(filename, "r") as f:
-                            _, _airfoil_data = read_profile(f)
-                            _user_filename = filename
+                    with open(filename, "r") as f:
+                        _airfoil_name, _airfoil_data = read_profile(f)
+                        _user_filename = filename
+
+                    _roTextBox1.text = "File: {}".format(fn)
+                    _roTextBox2.text = "Name: {}".format(_airfoil_name)
 
         except:
             if _ui:
@@ -130,7 +128,7 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             getOffsetFile = False
 
             # Connect to the variable the command will provide inputs for
-            global _roTextBox, _getOffsetFile
+            global _roTextBox1, _roTextBox2, _getOffsetFile
             global _chordLength, _errMessage
 
             # Connect to additional command created events
@@ -157,10 +155,14 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs = cmd.commandInputs
 
             # Create a read only textbox input. 2nd param is a field lable
-            _roTextBox = inputs.addTextBoxCommandInput(
-                "readonly_textBox_1", "", "", 2, True
+            _roTextBox1 = inputs.addTextBoxCommandInput(
+                "readonly_textBox_1", "", "", 1, True
             )
-            _roTextBox.isFullWidth = True
+            _roTextBox1.isFullWidth = True
+            _roTextBox2 = inputs.addTextBoxCommandInput(
+                "readonly_textBox_2", "", "", 2, True
+            )
+            _roTextBox2.isFullWidth = True
 
             # Add additional UI widgets here
             # Create bool value input with button style that can be clicked.
