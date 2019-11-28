@@ -1,0 +1,32 @@
+Clark Y
+    1st line: Airfoil name
+    2nd line: Num upper, num lower
+    space
+    x,y upper (le -> te)
+    space
+    x,y lower (te -> te)
+
+e544, same as Clarky
+
+Eiffel 10 (Wright flyer)
+    Airfoil name
+    x,y (upper te -> le, le ->te)
+
+FX 84-W-150, same as Eiffel 10
+
+FX 61-140, same as Clark Y
+
+Read 1st line, save as name
+Read next lines until numbers
+    if numbers >1:
+        #its and upper and lower curve
+        save as Upper, lower count
+        read Upper coords,
+        read Lower coords, reverse
+        combine upper and lower points
+
+    else 
+        #its one loop of data, (0,0) near middle of list
+        read coords
+        
+        
