@@ -14,7 +14,7 @@ _sketch = None
 _handlers = []
 
 # current set of offset data points (a dicitonary of lines and cross sections)
-_offset_data = {}  # TODO: pass values in attributes
+_airfoil_data = {}  # TODO: pass values in attributes
 _user_filename = ""  # TODO: save in attributes
 
 # Command inputs
@@ -25,7 +25,7 @@ _errMessage = adsk.core.TextBoxCommandInput.cast(None)
 
 
 # Event handler that reacts to when the command is destroyed. This terminates the script.
-class IotCommandDestroyHandler(adsk.core.CommandEventHandler):
+class IaCommandDestroyHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
 
@@ -39,7 +39,7 @@ class IotCommandDestroyHandler(adsk.core.CommandEventHandler):
 
 
 # Event handler for the inputChanged event.
-class IotCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
+class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
     def __init__(self):
         super().__init__()
 
@@ -48,7 +48,7 @@ class IotCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
-            global _roTextBox, _offset_data  # TODO: pass values in attributes
+            global _roTextBox, _airfoil_data  # TODO: pass values in attributes
 
             # Determine what changed from changedInput.id and act on it
             if changedInput.id == "select_file_button":
@@ -58,12 +58,12 @@ class IotCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     if filename.endswith(".json"):
                         _roTextBox.text = "Using:\n{}".format(fn)
                         with open(filename, "r") as f:
-                            _offset_data = json.load(f)
+                            _airfoil_data = json.load(f)
                             _user_filename = filename
                     elif filename.endswith(".txt"):
                         _roTextBox.text = "Using:\n{}".format(fn)
                         with open(filename, "r") as f:
-                            _, _offset_data = read_profile(f)
+                            _, _airfoil_data = read_profile(f)
                             _user_filename = filename
 
         except:
@@ -72,7 +72,7 @@ class IotCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
 
 # Event handler for the execute event.
-class IotCommandExecuteHandler(adsk.core.CommandEventHandler):
+class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
 
@@ -81,19 +81,19 @@ class IotCommandExecuteHandler(adsk.core.CommandEventHandler):
             eventArgs = adsk.core.CommandEventArgs.cast(args)
             unitsMgr = _app.activeProduct.unitsManager
 
-            global _offset_data, _user_filename
+            global _airfoil_data, _user_filename
 
-            if not _offset_data:
-                _ui.messageBox("Load an offset table")
+            if not _airfoil_data:
+                _ui.messageBox("Load airfoil table")
                 return
 
             # Run the actual command code here
             des = adsk.fusion.Design.cast(_app.activeProduct)
             attribs = des.attributes
-            attribs.add("ImportOffset", "filename", str(_user_filename))
+            attribs.add("ImportAirfoil", "filename", str(_user_filename))
 
             scale_factor = float(_scaleFactor.value)
-            draw_airfoil(des, _offset_data, scale_factor)
+            draw_airfoil(des, _airfoil_data, scale_factor)
 
         except:
             if _ui:
@@ -102,7 +102,7 @@ class IotCommandExecuteHandler(adsk.core.CommandEventHandler):
 
 # Event handler that reacts when the command definitio is executed which
 # results in the command being created and this event being fired.
-class IotCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
+class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     def __init__(self):
         super().__init__()
 
@@ -139,22 +139,22 @@ class IotCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             global _scaleFactor, _errMessage
 
             # Connect to additional command created events
-            onDestroy = IotCommandDestroyHandler()
+            onDestroy = IaCommandDestroyHandler()
             cmd.destroy.add(onDestroy)
             _handlers.append(onDestroy)
 
             # Connect to the execute event
-            onExecute = IotCommandExecuteHandler()
+            onExecute = IaCommandExecuteHandler()
             cmd.execute.add(onExecute)
             _handlers.append(onExecute)
 
             # Connect to the input changed event.
-            onInputChanged = IotCommandInputChangedHandler()
+            onInputChanged = IaCommandInputChangedHandler()
             cmd.inputChanged.add(onInputChanged)
             _handlers.append(onInputChanged)
 
             # Connect to the validate inputs event
-            onValidateInputs = IotCommandValidateInputsHandler()
+            onValidateInputs = IaCommandValidateInputsHandler()
             cmd.validateInputs.add(onValidateInputs)
             _handlers.append(onValidateInputs)
 
@@ -189,7 +189,7 @@ class IotCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
 
 # Event handler for the validateInputs event.
-class IotCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
+class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
     def __init__(self):
         super().__init__()
 
@@ -206,7 +206,7 @@ class IotCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                 eventArgs.areInputsValid = False
                 return
 
-            if not _offset_data:
+            if not _airfoil_data:
                 _errMessage.text = "Select an airfoil file"
                 eventArgs.areInputsValid = False
                 return
@@ -326,7 +326,7 @@ def run(context):
             )
 
         # Connect to the command created event.
-        onCommandCreated = IotCommandCreatedHandler()
+        onCommandCreated = IaCommandCreatedHandler()
         cmdDef.commandCreated.add(onCommandCreated)
         _handlers.append(onCommandCreated)
 
