@@ -10,20 +10,18 @@ _app = None
 _ui = None
 _sketch = None
 
-# Global set of event handlers to keep them referenced for the duration of the command
+# keep event handlers referenced for the duration of the command
 _handlers = []
 
-# current set of offset data points (a dicitonary of lines and cross sections)
-_airfoil_data = {}  # TODO: pass values in attributes
-_user_filename = ""  # TODO: save in attributes
+# current set of airfoil points
+_airfoil_data = []  # TODO: pass values in attributes
 _airfoil_name = ""
+_user_filename = ""
 
 # Command inputs
-_roTextBox1 = adsk.core.TextBoxCommandInput.cast(None)
-_roTextBox2 = adsk.core.TextBoxCommandInput.cast(None)
-_getOffsetFile = adsk.core.TextBoxCommandInput.cast(None)
+_AirfoilFilename = adsk.core.TextBoxCommandInput.cast(None)
 _chordLength = adsk.core.ValueCommandInput.cast(None)
-_errMessage = adsk.core.TextBoxCommandInput.cast(None)
+_statusMsg = adsk.core.TextBoxCommandInput.cast(None)
 
 
 # Event handler that reacts to when the command is destroyed. This terminates the script.
@@ -50,19 +48,16 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
-            global _roTextBox1, _roTextBox2, _airfoil_data, _airfoil_name
+            global _airfoil_data, _airfoil_name, _statusMsg
 
             # Determine what changed from changedInput.id and act on it
-            if changedInput.id == "select_file_button":
+            if changedInput.id == "AirfoilFilename_id":
                 filename = get_user_file()
                 if filename:
                     fn = os.path.split(filename)[-1]
                     with open(filename, "r") as f:
                         _airfoil_name, _airfoil_data = read_profile(f)
                         _user_filename = filename
-
-                    _roTextBox1.text = "File: {}".format(fn)
-                    _roTextBox2.text = "Name: {}".format(_airfoil_name)
 
         except:
             if _ui:
@@ -87,8 +82,8 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
 
             # Run the actual command code here
             des = adsk.fusion.Design.cast(_app.activeProduct)
-            attribs = des.attributes
-            attribs.add("ImportAirfoil", "filename", str(_user_filename))
+            # attribs = des.attributes
+            # attribs.add("ImportAirfoil", "filename", str(_user_filename))
 
             chord_length = float(_chordLength.value)
             draw_airfoil(des, _airfoil_data, chord_length)
@@ -125,11 +120,10 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 global _sketch
                 _sketch = _app.activeEditObject
 
-            getOffsetFile = False
+            #getAirfoilFile = False
 
             # Connect to the variable the command will provide inputs for
-            global _roTextBox1, _roTextBox2, _getOffsetFile
-            global _chordLength, _errMessage
+            global _AirfoilFilename, _chordLength, _statusMsg
 
             # Connect to additional command created events
             onDestroy = IaCommandDestroyHandler()
@@ -154,37 +148,31 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Get the CommandInputs collection associated with the command.
             inputs = cmd.commandInputs
 
-            # Create a read only textbox input. 2nd param is a field lable
-            _roTextBox1 = inputs.addTextBoxCommandInput(
-                "readonly_textBox_1", "", "", 1, True
-            )
-            _roTextBox1.isFullWidth = True
-            _roTextBox2 = inputs.addTextBoxCommandInput(
-                "readonly_textBox_2", "", "", 2, True
-            )
-            _roTextBox2.isFullWidth = True
-
-            # Add additional UI widgets here
             # Create bool value input with button style that can be clicked.
-            _getOffsetFile = inputs.addBoolValueInput(
-                "select_file_button", "Select File", False, "resources/filebutton", True
+            _AirfoilFilename = inputs.addBoolValueInput(
+                "AirfoilFilename_id",
+                "Select File", 
+                False, 
+                "resources/filebutton", 
+                True
             )
 
-            chordLength = "1.0"
-            # chordLengthAttrib = des.attributes.itemByName("ImportAirfoil", "chordLength")
-            # if chordLengthAttrib:
-            #    chordLength = chordLengthAttrib.value
-
+            # A numeric value input
             _chordLength = inputs.addValueInput(
-                "chordLength",
-                "chord Length",
-                "",
-                adsk.core.ValueInput.createByReal(float(chordLength)),
+                "chordLength_id",
+                "Chord Length",
+                _app.activeProduct.unitsManager.defaultLengthUnits,
+                adsk.core.ValueInput.createByReal(1.0),
             )
 
-            # Add an error message box at bottom
-            _errMessage = inputs.addTextBoxCommandInput("errMessage", "", "", 2, True)
-            _errMessage.isFullWidth = True
+            # Add a status message box at bottom
+            _statusMsg = inputs.addTextBoxCommandInput(
+                "StatusMsg_id", 
+                "", 
+                "", 
+                2, 
+                True)
+            _statusMsg.isFullWidth = True
 
         except:
             _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
@@ -198,20 +186,20 @@ class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
     def notify(self, args):
         try:
             eventArgs = adsk.core.ValidateInputsEventArgs.cast(args)
-            unitsMgr = _app.activeProduct.unitsManager
 
-            _errMessage.text = ""
+            _statusMsg.text = ""
 
-            chordLength = _chordLength.value
+            chordLength = float(_chordLength.value)
             if chordLength < 0:
-                _errMessage.text = "Chord length must be positive"
+                _statusMsg.text = "Chord length must be positive"
                 eventArgs.areInputsValid = False
                 return
 
             if not _airfoil_data:
-                _errMessage.text = "Select an airfoil file"
+                _statusMsg.text = "Select an airfoil file"
                 eventArgs.areInputsValid = False
-                return
+            else:
+                _statusMsg.text = "Imported: {}, {} points".format(_airfoil_name, len(_airfoil_data))
 
         except:
             if _ui:
@@ -244,10 +232,10 @@ def read_profile(infile):
     indicating number of points for upper and lower surface,
     then a list of upper surface points and finally the lower
     surface points.
-    
     """
+
     # Skips airfoil name
-    name = infile.readline()
+    name = infile.readline().strip()
 
     # Read the points, then skip any blank lines
     raw = [[float(c) for c in line.split()] for line in infile]
@@ -335,9 +323,8 @@ def run(context):
         # Execute the command definition.
         cmdDef.execute()
 
-        # _ui.messageBox(sys.version)
-
-        # Prevent this module from being terminated when the script returns, because we are waiting for event handlers to fire.
+        # Prevent this module from being terminated when the script 
+        # returns, we might be waiting for event handlers to fire.
         adsk.autoTerminate(False)
 
     except:
