@@ -96,20 +96,20 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
                 _ui.messageBox("Load airfoil table")
                 return
 
-            if not _sketch:
-                sketch_plane = _SketchPlaneSelect.selection(0).entity
-
-                # Create a new component.
-                design = adsk.fusion.Design.cast(_app.activeProduct)
-                # rootComp = design.rootComponent
-                # trans = adsk.core.Matrix3D.create()
-                # occ = rootComp.occurrences.addNewComponent(trans)
-                # newComp = occ.component
-                comp = design.activeComponent
-
-                # Create a new sketch on the xy plane.
-                _sketch = comp.sketches.add(sketch_plane)
-
+            # if not _sketch:
+            #    sketch_plane = _SketchPlaneSelect.selection(0).entity
+            #
+            #    # Create a new component.
+            #    design = adsk.fusion.Design.cast(_app.activeProduct)
+            #    # rootComp = design.rootComponent
+            #    # trans = adsk.core.Matrix3D.create()
+            #    # occ = rootComp.occurrences.addNewComponent(trans)
+            #    # newComp = occ.component
+            #    comp = design.activeComponent
+            #
+            #    # Create a new sketch on the xy plane.
+            #    _sketch = comp.sketches.add(sketch_plane)
+            #
             # Run the actual command code here
             des = adsk.fusion.Design.cast(_app.activeProduct)
             # attribs = des.attributes
@@ -147,9 +147,9 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             global _sketch
             if _app.activeEditObject.objectType == adsk.fusion.Sketch.classType():
                 _sketch = _app.activeEditObject
-            # else:
-            #   _ui.messageBox("A sketch must be active for this command.")
-            #    return ()
+            else:
+                _ui.messageBox("A sketch must be active for this command.")
+                return ()
 
             # getAirfoilFile = False
 
@@ -185,12 +185,12 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             )
 
             # Create the Selection input to have a planar face or construction plane selected.
-            _SketchPlaneSelect = inputs.addSelectionInput(
-                "SketchPlane_id", "Plane", "Select sketch plane."
-            )
-            _SketchPlaneSelect.addSelectionFilter("PlanarFaces")
-            _SketchPlaneSelect.addSelectionFilter("ConstructionPlanes")
-            _SketchPlaneSelect.setSelectionLimits(1, 1)
+            # _SketchPlaneSelect = inputs.addSelectionInput(
+            #    "SketchPlane_id", "Plane", "Select sketch plane."
+            # )
+            # _SketchPlaneSelect.addSelectionFilter("PlanarFaces")
+            # _SketchPlaneSelect.addSelectionFilter("ConstructionPlanes")
+            # _SketchPlaneSelect.setSelectionLimits(1, 1)
 
             # A numeric value input
             _chordLength = inputs.addValueInput(
