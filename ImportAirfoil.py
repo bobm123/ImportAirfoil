@@ -21,6 +21,7 @@ _user_filename = ""
 # Command inputs
 _AirfoilFilename = adsk.core.TextBoxCommandInput.cast(None)
 _chordLength = adsk.core.ValueCommandInput.cast(None)
+_SketchPlaneSelect = adsk.core.SelectionCommandInput.cast(None)
 _statusMsg = adsk.core.TextBoxCommandInput.cast(None)
 
 
@@ -48,16 +49,31 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
-            global _airfoil_data, _airfoil_name, _statusMsg
+            global _airfoil_data, _airfoil_name, _sketch
 
             # Determine what changed from changedInput.id and act on it
             if changedInput.id == "AirfoilFilename_id":
                 filename = get_user_file()
+                # Try, if not read, invalidate input
                 if filename:
                     fn = os.path.split(filename)[-1]
                     with open(filename, "r") as f:
                         _airfoil_name, _airfoil_data = read_profile(f)
                         _user_filename = filename
+
+            # if changedInput.id == "SketchPlane_id":
+            #    # _ui.messageBox(_SketchPlaneSelect.selection(0).objectType)
+            #    sketch_plane = _SketchPlaneSelect.selection(0).entity
+
+            #    # Create a new component.
+            #    design = adsk.fusion.Design.cast(_app.activeProduct)
+            #    rootComp = design.rootComponent
+            #    trans = adsk.core.Matrix3D.create()
+            #    occ = rootComp.occurrences.addNewComponent(trans)
+            #    newComp = occ.component
+
+            #    # Create a new sketch on the xy plane.
+            #    _sketch = newComp.sketches.add(sketch_plane)
 
         except:
             if _ui:
@@ -74,11 +90,25 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
             eventArgs = adsk.core.CommandEventArgs.cast(args)
             unitsMgr = _app.activeProduct.unitsManager
 
-            global _airfoil_data, _user_filename
+            global _airfoil_data, _user_filename, _sketch
 
             if not _airfoil_data:
                 _ui.messageBox("Load airfoil table")
                 return
+
+            if not _sketch:
+                sketch_plane = _SketchPlaneSelect.selection(0).entity
+
+                # Create a new component.
+                design = adsk.fusion.Design.cast(_app.activeProduct)
+                # rootComp = design.rootComponent
+                # trans = adsk.core.Matrix3D.create()
+                # occ = rootComp.occurrences.addNewComponent(trans)
+                # newComp = occ.component
+                comp = design.activeComponent
+
+                # Create a new sketch on the xy plane.
+                _sketch = comp.sketches.add(sketch_plane)
 
             # Run the actual command code here
             des = adsk.fusion.Design.cast(_app.activeProduct)
@@ -86,6 +116,7 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
             # attribs.add("ImportAirfoil", "filename", str(_user_filename))
 
             chord_length = float(_chordLength.value)
+
             draw_airfoil(des, _airfoil_data, chord_length)
 
         except:
@@ -113,17 +144,17 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             #    return ()
 
             # Verify that a sketch is active. TODO: If not, create one
-            if _app.activeEditObject.objectType != adsk.fusion.Sketch.classType():
-                _ui.messageBox("A sketch must be active for this command.")
-                return ()
-            else:
-                global _sketch
+            global _sketch
+            if _app.activeEditObject.objectType == adsk.fusion.Sketch.classType():
                 _sketch = _app.activeEditObject
+            # else:
+            #   _ui.messageBox("A sketch must be active for this command.")
+            #    return ()
 
-            #getAirfoilFile = False
+            # getAirfoilFile = False
 
             # Connect to the variable the command will provide inputs for
-            global _AirfoilFilename, _chordLength, _statusMsg
+            global _AirfoilFilename, _chordLength, _SketchPlaneSelect, _statusMsg
 
             # Connect to additional command created events
             onDestroy = IaCommandDestroyHandler()
@@ -150,12 +181,16 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             # Create bool value input with button style that can be clicked.
             _AirfoilFilename = inputs.addBoolValueInput(
-                "AirfoilFilename_id",
-                "Select File", 
-                False, 
-                "resources/filebutton", 
-                True
+                "AirfoilFilename_id", "Select File", False, "resources/filebutton", True
             )
+
+            # Create the Selection input to have a planar face or construction plane selected.
+            _SketchPlaneSelect = inputs.addSelectionInput(
+                "SketchPlane_id", "Plane", "Select sketch plane."
+            )
+            _SketchPlaneSelect.addSelectionFilter("PlanarFaces")
+            _SketchPlaneSelect.addSelectionFilter("ConstructionPlanes")
+            _SketchPlaneSelect.setSelectionLimits(1, 1)
 
             # A numeric value input
             _chordLength = inputs.addValueInput(
@@ -166,12 +201,7 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             )
 
             # Add a status message box at bottom
-            _statusMsg = inputs.addTextBoxCommandInput(
-                "StatusMsg_id", 
-                "", 
-                "", 
-                2, 
-                True)
+            _statusMsg = inputs.addTextBoxCommandInput("StatusMsg_id", "", "", 2, True)
             _statusMsg.isFullWidth = True
 
         except:
@@ -199,7 +229,9 @@ class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
                 _statusMsg.text = "Select an airfoil file"
                 eventArgs.areInputsValid = False
             else:
-                _statusMsg.text = "Imported: {}, {} points".format(_airfoil_name, len(_airfoil_data))
+                _statusMsg.text = "Imported: {}, {} points".format(
+                    _airfoil_name, len(_airfoil_data)
+                )
 
         except:
             if _ui:
@@ -323,7 +355,7 @@ def run(context):
         # Execute the command definition.
         cmdDef.execute()
 
-        # Prevent this module from being terminated when the script 
+        # Prevent this module from being terminated when the script
         # returns, we might be waiting for event handlers to fire.
         adsk.autoTerminate(False)
 
