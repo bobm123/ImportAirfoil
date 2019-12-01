@@ -1,10 +1,13 @@
 {
 	"autodeskProduct":	"Fusion360",
-	"type":	"script",
-	"author":	"Robert Marchese",
+	"type":	"addin",
+	"id":	"d17ba995-ce25-4881-af79-17be1a00dbfc",
+	"author":	"RM",
 	"description":	{
-		"":	"Import Airfoil Data"
+		"":	"Import Airfoil Points"
 	},
+	"version":	"",
+	"runOnStartup":	false,
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true
 }

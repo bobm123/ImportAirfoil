@@ -1,9 +1,11 @@
-# Author-Robert Marchese
-# Description-Import Airfoil Data
+#Author-
+#Description-Import Airfoil Points
 
-import adsk.core, adsk.fusion, traceback
+import adsk.core
+import adsk.fusion
+import traceback
+
 import os
-import sys
 
 # Globals
 _app = None
@@ -34,7 +36,8 @@ class IaCommandDestroyHandler(adsk.core.CommandEventHandler):
         try:
             # When the command is done, terminate the script
             # This will release all globals which will remove all event handlers
-            adsk.terminate()
+            #adsk.terminate()
+            pass
         except:
             _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
 
@@ -74,6 +77,36 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
             #    # Create a new sketch on the xy plane.
             #    _sketch = newComp.sketches.add(sketch_plane)
+
+        except:
+            if _ui:
+                _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
+
+
+# Event handler for the validateInputs event.
+class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        try:
+            eventArgs = adsk.core.ValidateInputsEventArgs.cast(args)
+
+            _statusMsg.text = ""
+
+            chordLength = float(_chordLength.value)
+            if chordLength < 0:
+                _statusMsg.text = "Chord length must be positive"
+                eventArgs.areInputsValid = False
+                return
+
+            if not _airfoil_data:
+                _statusMsg.text = "Select an airfoil file"
+                eventArgs.areInputsValid = False
+            else:
+                _statusMsg.text = "Imported: {}, {} points".format(
+                    _airfoil_name, len(_airfoil_data)
+                )
 
         except:
             if _ui:
@@ -161,11 +194,6 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd.destroy.add(onDestroy)
             _handlers.append(onDestroy)
 
-            # Connect to the execute event
-            onExecute = IaCommandExecuteHandler()
-            cmd.execute.add(onExecute)
-            _handlers.append(onExecute)
-
             # Connect to the input changed event.
             onInputChanged = IaCommandInputChangedHandler()
             cmd.inputChanged.add(onInputChanged)
@@ -175,6 +203,11 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             onValidateInputs = IaCommandValidateInputsHandler()
             cmd.validateInputs.add(onValidateInputs)
             _handlers.append(onValidateInputs)
+
+            # Connect to the execute event
+            onExecute = IaCommandExecuteHandler()
+            cmd.execute.add(onExecute)
+            _handlers.append(onExecute)
 
             # Get the CommandInputs collection associated with the command.
             inputs = cmd.commandInputs
@@ -206,36 +239,6 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
         except:
             _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
-
-
-# Event handler for the validateInputs event.
-class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
-    def __init__(self):
-        super().__init__()
-
-    def notify(self, args):
-        try:
-            eventArgs = adsk.core.ValidateInputsEventArgs.cast(args)
-
-            _statusMsg.text = ""
-
-            chordLength = float(_chordLength.value)
-            if chordLength < 0:
-                _statusMsg.text = "Chord length must be positive"
-                eventArgs.areInputsValid = False
-                return
-
-            if not _airfoil_data:
-                _statusMsg.text = "Select an airfoil file"
-                eventArgs.areInputsValid = False
-            else:
-                _statusMsg.text = "Imported: {}, {} points".format(
-                    _airfoil_name, len(_airfoil_data)
-                )
-
-        except:
-            if _ui:
-                _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
 
 
 def get_user_file():
@@ -332,6 +335,25 @@ def draw_airfoil(design, verticies, chord_length):
     return
 
 
+def remove_toolbar_icon(ui, button_id):
+    # Get panel the control is in.
+    addInsPanel = ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
+
+    # Get and delete the button control.
+    buttonControl = addInsPanel.controls.itemById(button_id)
+    if buttonControl:
+        buttonControl.deleteMe()
+    else:
+        ui.messageBox('Could not find button control {}'.format(button_id))
+
+    # Delete the button definition.
+    buttonExample = ui.commandDefinitions.itemById(button_id)
+    if buttonExample:
+        buttonExample.deleteMe()
+    else:
+        ui.messageBox('Could not find button definition {}'.format(button_id))
+
+
 def run(context):
     try:
         global _app, _ui
@@ -339,21 +361,29 @@ def run(context):
         _ui = _app.userInterface
 
         # Get the existing command definition or create it if it doesn't already exist.
-        cmdDef = _ui.commandDefinitions.itemById("cmdImportAirfoil")
+        cmdDef = _ui.commandDefinitions.itemById("IaButton_id")
         if not cmdDef:
             cmdDef = _ui.commandDefinitions.addButtonDefinition(
-                "cmdImportAirfoil",
+                "IaButton_id",
                 "Import Airfoil Data",
                 "Import airfoil coordinates from a file.",
+                './/resources//command_icons'
             )
 
         # Connect to the command created event.
-        onCommandCreated = IaCommandCreatedHandler()
-        cmdDef.commandCreated.add(onCommandCreated)
-        _handlers.append(onCommandCreated)
+        buttonExampleCreated = IaCommandCreatedHandler()
+        cmdDef.commandCreated.add(buttonExampleCreated)
+        _handlers.append(buttonExampleCreated)
 
-        # Execute the command definition.
-        cmdDef.execute()
+        # Get the ADD-INS panel in the model workspace. 
+        addInsPanel = _ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
+
+        # Add the button to the bottom.
+        buttonControl = addInsPanel.controls.addCommand(cmdDef)
+
+        # Make the button available in the panel.
+        buttonControl.isPromotedByDefault = True
+        buttonControl.isPromoted = True
 
         # Prevent this module from being terminated when the script
         # returns, we might be waiting for event handlers to fire.
@@ -361,4 +391,15 @@ def run(context):
 
     except:
         if _ui:
-            _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
+            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+
+
+def stop(context):
+    try:
+        remove_toolbar_icon(_ui, 'IaButton_id')
+
+        #_ui.messageBox('Stop addin')
+
+    except:
+        if _ui:
+            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
