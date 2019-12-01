@@ -3,7 +3,7 @@ Fusion 360 Plug-in for importing airfoil data.
 
 ![Screenshot][screenshot_original]
 
-[screenshot_original]: https://github.com/bobm123/ImportAirfoil/blob/master/images/ScreenShot-640.png
+[screenshot_original]: https://github.com/bobm123/ImportAirfoil/blob/master/ScreenShot-640.png
 
 Airfoil data can be found in many places on line. The script is able to import the two file formats I found here:
 https://m-selig.ae.illinois.edu/ads/coord_database.html
