@@ -1,11 +1,12 @@
-#Author-
-#Description-Import Airfoil Points
+# Author-
+# Description-Import Airfoil Points
 
 import adsk.core
 import adsk.fusion
 import traceback
 
 import os
+from math import sqrt, sin, cos, atan2
 
 # Globals
 _app = None
@@ -19,11 +20,13 @@ _handlers = []
 _airfoil_data = []  # TODO: pass values in attributes
 _airfoil_name = ""
 _user_filename = ""
+_chord = 1.0
 
 # Command inputs
 _AirfoilFilename = adsk.core.TextBoxCommandInput.cast(None)
-_chordLength = adsk.core.ValueCommandInput.cast(None)
-_SketchPlaneSelect = adsk.core.SelectionCommandInput.cast(None)
+# _chordLength = adsk.core.ValueCommandInput.cast(None)
+_LePointSelect = adsk.core.SelectionCommandInput.cast(None)
+_TePointSelect = adsk.core.SelectionCommandInput.cast(None)
 _statusMsg = adsk.core.TextBoxCommandInput.cast(None)
 
 
@@ -36,7 +39,7 @@ class IaCommandDestroyHandler(adsk.core.CommandEventHandler):
         try:
             # When the command is done, terminate the script
             # This will release all globals which will remove all event handlers
-            #adsk.terminate()
+            # adsk.terminate()
             pass
         except:
             _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
@@ -52,7 +55,7 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
-            global _airfoil_data, _airfoil_name, _sketch
+            global _airfoil_data, _airfoil_name, _LePointSelect, _TePointSelect
 
             # Determine what changed from changedInput.id and act on it
             if changedInput.id == "AirfoilFilename_id":
@@ -77,6 +80,26 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
             #    # Create a new sketch on the xy plane.
             #    _sketch = newComp.sketches.add(sketch_plane)
+            # if changedInput.id == "LePoint_id":
+            #    if _LePointSelect.selectionCount:
+            #        le_point = _LePointSelect.selection(0).entity
+            #        _ui.messageBox("LE Point:\n{}".format(le_point.geometry.asArray()))
+            #    else:
+            #        le_point = None
+
+            # if changedInput.id == "TePoint_id":
+            #    if _TePointSelect.selectionCount:
+            #        te_point = _TePointSelect.selection(0).entity
+            #        _ui.messageBox("TE Point:\n{}".format(te_point.geometry.asArray()))
+            #    else:
+            #        te_point = None
+
+            # if _LePointSelect.selectionCount and _TePointSelect.selectionCount:
+            #    le_point = _LePointSelect.selection(0).entity.geometry.asArray()
+            #    te_point = _TePointSelect.selection(0).entity.geometry.asArray()
+            #    _chord = sqrt(
+            #        (le_point[0] - te_point[0]) ** 2 + (le_point[1] - te_point[1]) ** 2
+            #    )
 
         except:
             if _ui:
@@ -94,11 +117,11 @@ class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
 
             _statusMsg.text = ""
 
-            chordLength = float(_chordLength.value)
-            if chordLength < 0:
-                _statusMsg.text = "Chord length must be positive"
-                eventArgs.areInputsValid = False
-                return
+            # chordLength = float(_chordLength.value)
+            # if chordLength <= 0:
+            #    _statusMsg.text = "Chord length must be positive"
+            #    eventArgs.areInputsValid = False
+            #    return
 
             if not _airfoil_data:
                 _statusMsg.text = "Select an airfoil file"
@@ -148,9 +171,12 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
             # attribs = des.attributes
             # attribs.add("ImportAirfoil", "filename", str(_user_filename))
 
-            chord_length = float(_chordLength.value)
+            # chord_length = float(_chordLength.value)
+            # draw_airfoil(des, _airfoil_data, chord_length)
 
-            draw_airfoil(des, _airfoil_data, chord_length)
+            le_point = _LePointSelect.selection(0).entity.geometry.asArray()
+            te_point = _TePointSelect.selection(0).entity.geometry.asArray()
+            draw_airfoil(des, _airfoil_data, le_point, te_point)
 
         except:
             if _ui:
@@ -187,7 +213,8 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # getAirfoilFile = False
 
             # Connect to the variable the command will provide inputs for
-            global _AirfoilFilename, _chordLength, _SketchPlaneSelect, _statusMsg
+            global _AirfoilFilename, _SketchPlaneSelect, _statusMsg
+            global _LePointSelect, _TePointSelect
 
             # Connect to additional command created events
             onDestroy = IaCommandDestroyHandler()
@@ -217,21 +244,26 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 "AirfoilFilename_id", "Select File", False, "resources/filebutton", True
             )
 
-            # Create the Selection input to have a planar face or construction plane selected.
-            # _SketchPlaneSelect = inputs.addSelectionInput(
-            #    "SketchPlane_id", "Plane", "Select sketch plane."
-            # )
-            # _SketchPlaneSelect.addSelectionFilter("PlanarFaces")
-            # _SketchPlaneSelect.addSelectionFilter("ConstructionPlanes")
-            # _SketchPlaneSelect.setSelectionLimits(1, 1)
+            # Create the Selection inputs for leading and trailing edge points
+            _LePointSelect = inputs.addSelectionInput(
+                "LePoint_id", "LE Point", "Leading edge location"
+            )
+            _LePointSelect.addSelectionFilter("SketchPoints")
+            _LePointSelect.setSelectionLimits(1, 1)
+
+            _TePointSelect = inputs.addSelectionInput(
+                "TePoint_id", "TE Point", "Trailing edge location"
+            )
+            _TePointSelect.addSelectionFilter("SketchPoints")
+            _TePointSelect.setSelectionLimits(1, 1)
 
             # A numeric value input
-            _chordLength = inputs.addValueInput(
-                "chordLength_id",
-                "Chord Length",
-                _app.activeProduct.unitsManager.defaultLengthUnits,
-                adsk.core.ValueInput.createByReal(1.0),
-            )
+            # _chordLength = inputs.addValueInput(
+            #    "chordLength_id",
+            #    "Chord Length",
+            #    _app.activeProduct.unitsManager.defaultLengthUnits,
+            #    adsk.core.ValueInput.createByReal(1.0),
+            # )
 
             # Add a status message box at bottom
             _statusMsg = inputs.addTextBoxCommandInput("StatusMsg_id", "", "", 2, True)
@@ -316,7 +348,43 @@ def add_cross_section(sketch, verticies):
     new_line = lines.addByTwoPoints(p0, p_start)
 
 
-def draw_airfoil(design, verticies, chord_length):
+def mat_mult(t, points):
+
+    p_out = []
+    for p in points:
+        px = p[0] * t[0][0] + p[1] * t[0][1] + t[0][2]
+        py = p[0] * t[1][0] + p[1] * t[1][1] + t[1][2]
+        p_out.append([px, py, 0.0])
+
+    return p_out
+
+
+def transform_coordinates(points, le, te):
+    """
+    Rotates and translates a set of points by applying
+    this transform matrix:
+
+    C*cos(A)    -C*sin(A)   LEx
+    C*sin(A)    C*cos(A)    LEy
+    0           0           1
+
+    Where C is the chord or length of line segment LE, TE
+    and A is its angle referenced to the X-axis. See wiki
+    article on "homogeneous coordinates" for details.
+    """
+    c = sqrt((te[0] - le[0]) ** 2 + (te[1] - le[1]) ** 2)
+    a = atan2(te[1] - le[1], te[0] - le[0])
+
+    t = []
+    t.append([c * cos(a), -c * sin(a), le[0]])
+    t.append([c * sin(a), c * cos(a), le[1]])
+    # No need to actually append the last row
+    # t.append([0, 0, 1])
+
+    return mat_mult(t, points)
+
+
+def draw_airfoil(design, verticies, le_point, te_point):
     """ Draw the lines and sections represented by the offset table
     on a new component """
     # Create a new component.
@@ -329,7 +397,12 @@ def draw_airfoil(design, verticies, chord_length):
     # sketch = newComp.sketches.add(rootComp.xYConstructionPlane)
 
     global _sketch
-    add_cross_section(_sketch, scale_coordinates(verticies, chord_length))
+
+    # chord_length = sqrt(
+    #    (le_point[0] - te_point[0]) ** 2 + (le_point[1] - te_point[1]) ** 2
+    # )
+    # add_cross_section(_sketch, scale_coordinates(verticies, chord_length))
+    add_cross_section(_sketch, transform_coordinates(verticies, le_point, te_point))
 
     # return newComp
     return
@@ -337,21 +410,21 @@ def draw_airfoil(design, verticies, chord_length):
 
 def remove_toolbar_icon(ui, button_id):
     # Get panel the control is in.
-    addInsPanel = ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
+    addInsPanel = ui.allToolbarPanels.itemById("SolidScriptsAddinsPanel")
 
     # Get and delete the button control.
     buttonControl = addInsPanel.controls.itemById(button_id)
     if buttonControl:
         buttonControl.deleteMe()
     else:
-        ui.messageBox('Could not find button control {}'.format(button_id))
+        ui.messageBox("Could not find button control {}".format(button_id))
 
     # Delete the button definition.
     buttonExample = ui.commandDefinitions.itemById(button_id)
     if buttonExample:
         buttonExample.deleteMe()
     else:
-        ui.messageBox('Could not find button definition {}'.format(button_id))
+        ui.messageBox("Could not find button definition {}".format(button_id))
 
 
 def run(context):
@@ -367,7 +440,7 @@ def run(context):
                 "IaButton_id",
                 "Import Airfoil Data",
                 "Import airfoil coordinates from a file.",
-                './/resources//command_icons'
+                ".//resources//command_icons",
             )
 
         # Connect to the command created event.
@@ -375,8 +448,8 @@ def run(context):
         cmdDef.commandCreated.add(buttonExampleCreated)
         _handlers.append(buttonExampleCreated)
 
-        # Get the ADD-INS panel in the model workspace. 
-        addInsPanel = _ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
+        # Get the ADD-INS panel in the model workspace.
+        addInsPanel = _ui.allToolbarPanels.itemById("SolidScriptsAddinsPanel")
 
         # Add the button to the bottom.
         buttonControl = addInsPanel.controls.addCommand(cmdDef)
@@ -391,15 +464,16 @@ def run(context):
 
     except:
         if _ui:
-            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+            _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
 
 
 def stop(context):
     try:
-        remove_toolbar_icon(_ui, 'IaButton_id')
+        remove_toolbar_icon(_ui, "IaButton_id")
 
-        #_ui.messageBox('Stop addin')
+        # _ui.messageBox('Stop addin')
 
     except:
         if _ui:
-            _ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+            _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
+
