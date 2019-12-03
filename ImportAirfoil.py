@@ -20,11 +20,9 @@ _handlers = []
 _airfoil_data = []  # TODO: pass values in attributes
 _airfoil_name = ""
 _user_filename = ""
-_chord = 1.0
 
 # Command inputs
 _AirfoilFilename = adsk.core.TextBoxCommandInput.cast(None)
-# _chordLength = adsk.core.ValueCommandInput.cast(None)
 _LePointSelect = adsk.core.SelectionCommandInput.cast(None)
 _TePointSelect = adsk.core.SelectionCommandInput.cast(None)
 _statusMsg = adsk.core.TextBoxCommandInput.cast(None)
@@ -55,7 +53,7 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             eventArgs = adsk.core.InputChangedEventArgs.cast(args)
             changedInput = eventArgs.input
 
-            global _airfoil_data, _airfoil_name, _LePointSelect, _TePointSelect
+            global _airfoil_data, _airfoil_name, _user_filename
 
             # Determine what changed from changedInput.id and act on it
             if changedInput.id == "AirfoilFilename_id":
@@ -66,40 +64,6 @@ class IaCommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     with open(filename, "r") as f:
                         _airfoil_name, _airfoil_data = read_profile(f)
                         _user_filename = filename
-
-            # if changedInput.id == "SketchPlane_id":
-            #    # _ui.messageBox(_SketchPlaneSelect.selection(0).objectType)
-            #    sketch_plane = _SketchPlaneSelect.selection(0).entity
-
-            #    # Create a new component.
-            #    design = adsk.fusion.Design.cast(_app.activeProduct)
-            #    rootComp = design.rootComponent
-            #    trans = adsk.core.Matrix3D.create()
-            #    occ = rootComp.occurrences.addNewComponent(trans)
-            #    newComp = occ.component
-
-            #    # Create a new sketch on the xy plane.
-            #    _sketch = newComp.sketches.add(sketch_plane)
-            # if changedInput.id == "LePoint_id":
-            #    if _LePointSelect.selectionCount:
-            #        le_point = _LePointSelect.selection(0).entity
-            #        _ui.messageBox("LE Point:\n{}".format(le_point.geometry.asArray()))
-            #    else:
-            #        le_point = None
-
-            # if changedInput.id == "TePoint_id":
-            #    if _TePointSelect.selectionCount:
-            #        te_point = _TePointSelect.selection(0).entity
-            #        _ui.messageBox("TE Point:\n{}".format(te_point.geometry.asArray()))
-            #    else:
-            #        te_point = None
-
-            # if _LePointSelect.selectionCount and _TePointSelect.selectionCount:
-            #    le_point = _LePointSelect.selection(0).entity.geometry.asArray()
-            #    te_point = _TePointSelect.selection(0).entity.geometry.asArray()
-            #    _chord = sqrt(
-            #        (le_point[0] - te_point[0]) ** 2 + (le_point[1] - te_point[1]) ** 2
-            #    )
 
         except:
             if _ui:
@@ -115,13 +79,9 @@ class IaCommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
         try:
             eventArgs = adsk.core.ValidateInputsEventArgs.cast(args)
 
-            _statusMsg.text = ""
+            global _statusMsg
 
-            # chordLength = float(_chordLength.value)
-            # if chordLength <= 0:
-            #    _statusMsg.text = "Chord length must be positive"
-            #    eventArgs.areInputsValid = False
-            #    return
+            _statusMsg.text = ""
 
             if not _airfoil_data:
                 _statusMsg.text = "Select an airfoil file"
@@ -146,44 +106,21 @@ class IaCommandExecuteHandler(adsk.core.CommandEventHandler):
             eventArgs = adsk.core.CommandEventArgs.cast(args)
             unitsMgr = _app.activeProduct.unitsManager
 
-            global _airfoil_data, _user_filename, _sketch
-
             if not _airfoil_data:
                 _ui.messageBox("Load airfoil table")
                 return
 
-            # if not _sketch:
-            #    sketch_plane = _SketchPlaneSelect.selection(0).entity
-            #
-            #    # Create a new component.
-            #    design = adsk.fusion.Design.cast(_app.activeProduct)
-            #    # rootComp = design.rootComponent
-            #    # trans = adsk.core.Matrix3D.create()
-            #    # occ = rootComp.occurrences.addNewComponent(trans)
-            #    # newComp = occ.component
-            #    comp = design.activeComponent
-            #
-            #    # Create a new sketch on the xy plane.
-            #    _sketch = comp.sketches.add(sketch_plane)
-            #
             # Run the actual command code here
-            des = adsk.fusion.Design.cast(_app.activeProduct)
-            # attribs = des.attributes
-            # attribs.add("ImportAirfoil", "filename", str(_user_filename))
-
-            # chord_length = float(_chordLength.value)
-            # draw_airfoil(des, _airfoil_data, chord_length)
-
             le_point = _LePointSelect.selection(0).entity.geometry.asArray()
             te_point = _TePointSelect.selection(0).entity.geometry.asArray()
-            draw_airfoil(des, _airfoil_data, le_point, te_point)
+            draw_airfoil(_sketch, _airfoil_data, le_point, te_point)
 
         except:
             if _ui:
                 _ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
 
 
-# Event handler that reacts when the command definitio is executed which
+# Event handler that reacts when the command definition is executed which
 # results in the command being created and this event being fired.
 class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     def __init__(self):
@@ -194,15 +131,7 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Get the command that was created.
             cmd = adsk.core.Command.cast(args.command)
 
-            # Verify that a Fusion design is active.
-            # des = adsk.fusion.Design.cast(_app.activeProduct)
-            # if not des:
-            #    _ui.messageBox(
-            #        "A Fusion design must be active when invoking this command."
-            #    )
-            #    return ()
-
-            # Verify that a sketch is active. TODO: If not, create one
+            # Verify that a sketch is active.
             global _sketch
             if _app.activeEditObject.objectType == adsk.fusion.Sketch.classType():
                 _sketch = _app.activeEditObject
@@ -210,10 +139,8 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 _ui.messageBox("A sketch must be active for this command.")
                 return ()
 
-            # getAirfoilFile = False
-
             # Connect to the variable the command will provide inputs for
-            global _AirfoilFilename, _SketchPlaneSelect, _statusMsg
+            global _AirfoilFilename, _statusMsg
             global _LePointSelect, _TePointSelect
 
             # Connect to additional command created events
@@ -257,14 +184,6 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             _TePointSelect.addSelectionFilter("SketchPoints")
             _TePointSelect.setSelectionLimits(1, 1)
 
-            # A numeric value input
-            # _chordLength = inputs.addValueInput(
-            #    "chordLength_id",
-            #    "Chord Length",
-            #    _app.activeProduct.unitsManager.defaultLengthUnits,
-            #    adsk.core.ValueInput.createByReal(1.0),
-            # )
-
             # Add a status message box at bottom
             _statusMsg = inputs.addTextBoxCommandInput("StatusMsg_id", "", "", 2, True)
             _statusMsg.isFullWidth = True
@@ -274,7 +193,7 @@ class IaCommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
 
 def get_user_file():
-    """User select offset file to open"""
+    """Get user's file selection using system open file dialog"""
 
     # Set up the file dialog.
     fileDlg = _ui.createFileDialog()
@@ -321,34 +240,15 @@ def read_profile(infile):
     return name, coordinates
 
 
-def scale_coordinates(in_list, scale):
-    """ Apply a scale factor to all the values in a list """
-
-    out_list = []
-    for point in in_list:
-        out_list.append([scale * a for a in point])
-
-    return out_list
-
-
-def add_cross_section(sketch, verticies):
-    """Adds a polygon for a list of cross section verticies"""
-
-    # TODO: generalize drawing a polygon from list of 2D points
-    lines = sketch.sketchCurves.sketchLines
-
-    # Start a first point
-    p_start = adsk.core.Point3D.create(verticies[0][0], verticies[0][1], 0)
-    p0 = p_start
-    for p in verticies[1:]:
-        new_line = lines.addByTwoPoints(p0, adsk.core.Point3D.create(p[0], p[1], 0))
-        p0 = new_line.endSketchPoint
-
-    # Close it by connecting p_end back to P_start
-    new_line = lines.addByTwoPoints(p0, p_start)
-
 
 def mat_mult(t, points):
+    """
+    Multiplies the 3x3 transform matrix with a list of points
+    All this happens in 'homogeneous coordinates' so the points
+    are assumed to be lie the z=1 plane, as (x,y,1). However,
+    the output is placed back on the z=0 plane so it can be
+    plotted on the sketch plane.
+    """
 
     p_out = []
     for p in points:
@@ -368,10 +268,11 @@ def transform_coordinates(points, le, te):
     C*sin(A)    C*cos(A)    LEy
     0           0           1
 
-    Where C is the chord or length of line segment LE, TE
+    Where C is the chord or length of line segment LE to TE
     and A is its angle referenced to the X-axis. See wiki
     article on "homogeneous coordinates" for details.
     """
+
     c = sqrt((te[0] - le[0]) ** 2 + (te[1] - le[1]) ** 2)
     a = atan2(te[1] - le[1], te[0] - le[0])
 
@@ -384,27 +285,28 @@ def transform_coordinates(points, le, te):
     return mat_mult(t, points)
 
 
-def draw_airfoil(design, verticies, le_point, te_point):
-    """ Draw the lines and sections represented by the offset table
-    on a new component """
-    # Create a new component.
-    # rootComp = design.rootComponent
-    # trans = adsk.core.Matrix3D.create()
-    # occ = rootComp.occurrences.addNewComponent(trans)
-    # newComp = occ.component
+def draw_airfoil(sketch, verticies, le_point, te_point):
+    """
+    Plot the airfoil coordinates so the lie between the
+    leading edge and trailing edge points. Result is a close polygon
+    """
+    
+    # Transform the points so they lie between the LE and TE points
+    trans_verts = transform_coordinates(verticies, le_point, te_point)
 
-    # Create a new sketch on the xy plane.
-    # sketch = newComp.sketches.add(rootComp.xYConstructionPlane)
+    # TODO: generalize drawing a polygon from list of 2D points
+    lines = sketch.sketchCurves.sketchLines
 
-    global _sketch
+    # Start a first point
+    p_start = adsk.core.Point3D.create(trans_verts[0][0], trans_verts[0][1], 0)
+    p0 = p_start
+    for p in trans_verts[1:]:
+        new_line = lines.addByTwoPoints(p0, adsk.core.Point3D.create(p[0], p[1], 0))
+        p0 = new_line.endSketchPoint
 
-    # chord_length = sqrt(
-    #    (le_point[0] - te_point[0]) ** 2 + (le_point[1] - te_point[1]) ** 2
-    # )
-    # add_cross_section(_sketch, scale_coordinates(verticies, chord_length))
-    add_cross_section(_sketch, transform_coordinates(verticies, le_point, te_point))
+    # Close it by connecting p_end back to P_start
+    new_line = lines.addByTwoPoints(p0, p_start)
 
-    # return newComp
     return
 
 
@@ -442,6 +344,9 @@ def run(context):
                 "Import airfoil coordinates from a file.",
                 ".//resources//command_icons",
             )
+
+        #for panel in ui.allToolbarPanels:
+        #    print(panel.id)
 
         # Connect to the command created event.
         buttonExampleCreated = IaCommandCreatedHandler()
