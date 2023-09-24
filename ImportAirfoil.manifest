@@ -1,13 +1,10 @@
 {
 	"autodeskProduct":	"Fusion360",
-	"type":	"addin",
-	"id":	"d17ba995-ce25-4881-af79-17be1a00dbfc",
+	"type":	"script",
 	"author":	"RM",
 	"description":	{
-		"":	"Import Airfoil Points"
+		"":	"Tool for importing airfoil coordiantes files"
 	},
-	"version":	"",
-	"runOnStartup":	false,
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true
 }
